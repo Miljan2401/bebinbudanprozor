@@ -1,104 +1,116 @@
 import streamlit as st
-import datetime
-import pandas as pd
-import altair as alt
+import json
+import os
+from datetime import datetime, timedelta
 from twilio.rest import Client
-import threading
-import time
-import pytz
 
-# Twilio setup (popuni sa tvojim podacima)
+# Twilio podešavanja
 account_sid = 'ACd807f2bde8af5db99312ffc4bae1551c'
 auth_token = '41acd9fbdc365814a0a8b84d52cd2083'
 client = Client(account_sid, auth_token)
-twilio_from = 'whatsapp:+14155238886'
-twilio_to = 'whatsapp:+381642538013'
 
-local_tz = pytz.timezone("Europe/Belgrade")
+# Putanja do fajla za čuvanje istorije
+DATA_FILE = "bebini_prozori.json"
 
-def get_awake_window_range(age_months):
-    if age_months < 1:
-        return 45, 60
-    elif 1 <= age_months < 3:
-        return 60, 90
-    elif 3 <= age_months < 5:
-        return 75, 120
-    elif 5 <= age_months < 8:
-        return 120, 180
-    elif 8 <= age_months < 11:
-        return 150, 210
-    elif 11 <= age_months < 18:
-        return 180, 240
+# Učitavanje istorije iz fajla
+def load_history():
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, "r") as f:
+            return json.load(f)
+    return []
+
+# Čuvanje istorije u fajl
+def save_history(history):
+    with open(DATA_FILE, "w") as f:
+        json.dump(history, f, indent=2)
+
+# Konvertovanje stringa u datetime
+def str_to_dt(s):
+    return datetime.strptime(s, "%Y-%m-%d %H:%M:%S")
+
+# Konvertovanje datetime u string
+def dt_to_str(dt):
+    return dt.strftime("%Y-%m-%d %H:%M:%S")
+
+# Maksimalni budni interval u minutima po uzrastu u nedeljama
+def max_budnost_minutes(age_weeks):
+    if age_weeks <= 4:
+        return 60
+    elif age_weeks <= 12:
+        return 90
+    elif age_weeks <= 16:
+        return 120
+    elif age_weeks <= 30:
+        return 180
+    elif age_weeks <= 40:
+        return 210
+    elif age_weeks <= 78:
+        return 240
     else:
-        return 240, 360
+        return 360
 
-def send_whatsapp_message(message_text):
-    message = client.messages.create(
-        from_=twilio_from,
-        body=message_text,
-        to=twilio_to
-    )
-    print(f"WhatsApp poruka poslata SID: {message.sid}")
+st.title("Bebin Budni Prozor sa Istorijom i WhatsApp Podsetnikom")
 
-def schedule_message(delay_seconds, message_text):
-    def task():
-        time.sleep(delay_seconds)
-        send_whatsapp_message(message_text)
-    threading.Thread(target=task).start()
+age_weeks = st.number_input("Starost bebe (nedelje):", min_value=0, max_value=104, value=8)
+wake_time = st.time_input("Vreme buđenja bebe:", value=datetime.now().time())
+sleep_time = st.time_input("Vreme uspavljivanja bebe:", value=(datetime.now() + timedelta(minutes=30)).time())
 
-st.title("👶 Baby Sleep & Awake Tracker")
+now = datetime.now()
+wake_dt = datetime.combine(now.date(), wake_time)
+sleep_dt = datetime.combine(now.date(), sleep_time)
+if sleep_dt <= wake_dt:
+    sleep_dt += timedelta(days=1)
 
-# Podaci o bebi
-age_months = st.number_input("Uzrast bebe (meseci)", min_value=0, max_value=36, value=2)
+history = load_history()
 
-min_awake, max_awake = get_awake_window_range(age_months)
-st.write(f"Preporučeni interval budnosti: {min_awake} - {max_awake} minuta")
+# Dugme za dodavanje unosa u istoriju
+if st.button("Sačuvaj unos budnog perioda"):
+    new_entry = {
+        "wake": dt_to_str(wake_dt),
+        "sleep": dt_to_str(sleep_dt),
+        "age_weeks": age_weeks
+    }
+    history.append(new_entry)
+    save_history(history)
+    st.success("Unos sačuvan!")
 
-# Unos ciklusa budnosti (više unosa)
-st.markdown("## Unesi cikluse budnosti bebe")
-num_cycles = st.number_input("Broj budnih perioda danas", min_value=1, max_value=6, value=2)
+# Prikaz istorije unosa
+if history:
+    st.subheader("Istorija unosa budnih perioda:")
+    for i, entry in enumerate(history[::-1], 1):
+        st.write(f"{i}. Buđenje: {entry['wake']} | Spavanje: {entry['sleep']} | Starost: {entry['age_weeks']} nedelja")
 
-cycles = []
-now = datetime.datetime.now(local_tz)
+# Računanje ukupne budnosti od poslednjeg unosa
+if history:
+    last = history[-1]
+    last_wake = str_to_dt(last["wake"])
+    last_sleep = str_to_dt(last["sleep"])
+    last_age = last["age_weeks"]
+    max_bud = max_budnost_minutes(last_age)
+    elapsed = (datetime.now() - last_wake).total_seconds() / 60  # u minutima
 
-for i in range(num_cycles):
-    st.markdown(f"### Ciklus {i+1}")
-    wake_time = st.time_input(f"Vreme buđenja za ciklus {i+1}", value=(now + datetime.timedelta(minutes=60*i)).time(), key=f"wake{i}")
-    awake_length = st.slider(f"Dužina budnosti u minutima (min {min_awake}, max {max_awake})", min_awake, max_awake, min_awake, key=f"awake{i}")
-    wake_dt = datetime.datetime.combine(now.date(), wake_time)
-    wake_dt = local_tz.localize(wake_dt)
-    sleep_dt = wake_dt + datetime.timedelta(minutes=awake_length)
-    cycles.append({"wake": wake_dt, "sleep": sleep_dt, "awake_length": awake_length})
+    st.write(f"Poslednji budni prozor počeo je u {last_wake.strftime('%H:%M:%S')}")
+    st.write(f"Trenutno beba je budna oko {int(elapsed)} minuta, maksimalno preporučeno: {max_bud} minuta")
 
-# Prikaz grafikona ciklusa
-if cycles:
-    df = pd.DataFrame([
-        {"Period": f"Ciklus {i+1} - Budna", "Start": c["wake"], "End": c["sleep"], "State": "Budna"}
-        for i, c in enumerate(cycles)
-    ] + [
-        {"Period": f"Ciklus {i+1} - Spavanje", "Start": c["sleep"], "End": cycles[i+1]["wake"] if i+1 < len(cycles) else c["sleep"] + datetime.timedelta(minutes=60), "State": "Spavanje"}
-        for i, c in enumerate(cycles)
-    ])
-
-    base = alt.Chart(df).encode(
-        x='Start:T',
-        x2='End:T',
-        y=alt.Y('Period:N', sort=None),
-        color=alt.Color('State:N', scale=alt.Scale(domain=["Budna", "Spavanje"], range=["green", "blue"]))
-    )
-
-    bars = base.mark_bar()
-    st.altair_chart(bars, use_container_width=True)
-
-# Dugme za zakazivanje podsetnika za prvi ciklus
-if st.button("Zakaži WhatsApp podsetnik za prvi spavanje"):
-    now = datetime.datetime.now(local_tz)
-    sleep_time = cycles[0]["sleep"]
-    delay = (sleep_time - now).total_seconds()
-    if delay > 0:
-        msg = f"⏰ Beba treba da ide na spavanje u {sleep_time.strftime('%H:%M')}."
-        schedule_message(delay, msg)
-        st.success(f"Podsetnik zakazan za {sleep_time.strftime('%H:%M')}")
+    if elapsed >= max_bud:
+        st.warning("Beba je premašila maksimalni preporučeni budni period. Preporučuje se uspavljivanje odmah.")
+        reminder_time = datetime.now() + timedelta(seconds=10)
     else:
-        st.error("Vreme za spavanje je već prošlo.")
+        reminder_time = last_wake + timedelta(minutes=max_bud)
+        st.info(f"Podsetnik za uspavljivanje je zakazan za {reminder_time.strftime('%H:%M:%S')}")
+
+    # Dugme za slanje WhatsApp podsetnika
+    if st.button("Pošalji WhatsApp podsetnik sada"):
+        try:
+            msg_body = f"Podsetnik: Bebin maksimalni budni period je {max_bud} minuta. Vreme za uspavljivanje: {reminder_time.strftime('%H:%M')}."
+            message = client.messages.create(
+                from_='whatsapp:+14155238886',
+                body=msg_body,
+                to='whatsapp:+381642538013'  # ovde stavi svoj broj
+            )
+            st.success(f"Poruka poslata! SID: {message.sid}")
+        except Exception as e:
+            st.error(f"Greška pri slanju poruke: {e}")
+else:
+    st.info("Nema unosa u istoriji. Sačuvaj prvi budni period.")
 
