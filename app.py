@@ -1,11 +1,11 @@
 import streamlit as st
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta
 from threading import Timer
 from twilio.rest import Client
 
-# Twilio podaci (zameni stvarnim vrednostima)
-ACCOUNT_SID = "ACd807f2bde8af5db99312ffc4bae1551c"
-AUTH_TOKEN = "41acd9fbdc365814a0a8b84d52cd2083"
+# Twilio podaci (ubaci svoje)
+ACCOUNT_SID = "your_account_sid"
+AUTH_TOKEN = "your_auth_token"
 FROM_WHATSAPP = "whatsapp:+14155238886"
 TO_WHATSAPP = "whatsapp:+381642538013"
 
@@ -20,6 +20,7 @@ uzrast_opcije = {
     "9–12 meseci (150 min)": 150,
     "12+ meseci (180 min)": 180
 }
+
 uzrast = st.selectbox("Izaberi uzrast bebe:", list(uzrast_opcije.keys()))
 budno_minuta = uzrast_opcije[uzrast]
 
@@ -56,20 +57,15 @@ def schedule_notification(budjenje_vreme, budno_minuta):
     t.start()
     st.info(f"Podsetnik će biti poslat u {podsetnik_vreme.strftime('%H:%M')} (za {int(vreme_do_podsetnika)} sekundi).")
 
-# Kompaktni unos sata i minuta u jednom redu koristeći kolone
-col1, col2 = st.columns(2)
-
-with col1:
-    sat = st.selectbox("Sat (1-24)", list(range(1, 25)), index=datetime.now().hour-1)
-with col2:
-    minut = st.selectbox("Minut (0-59)", list(range(0, 60)), index=datetime.now().minute)
+# Koristi st.time_input za izbor vremena u jednom polju (ima scroll picker u browseru i mobilnim uređajima)
+vreme_budenja = st.time_input("Unesi vreme poslednjeg buđenja bebe (sat i minut):", value=datetime.now().time())
 
 if st.button("Dodaj buđenje i zakaži podsetnik"):
     danas = datetime.now().date()
-    vreme_obj = datetime.combine(danas, time(hour=sat, minute=minut))
+    vreme_obj = datetime.combine(danas, vreme_budenja)
     sada = datetime.now()
 
-    # Ako je izabrano vreme u prošlosti, podesi za sutra
+    # Ako je vreme iz prošlosti, prebacujemo na sutra
     if vreme_obj < sada:
         vreme_obj += timedelta(days=1)
 
