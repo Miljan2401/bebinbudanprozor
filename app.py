@@ -6,63 +6,50 @@ account_sid = 'ACd807f2bde8af5db99312ffc4bae1551c'
 auth_token = '41acd9fbdc365814a0a8b84d52cd2083'
 client = Client(account_sid, auth_token)
 
-# Funkcija za unos vremena
-def unesi_vreme(prompt):
-    while True:
-        try:
-            vreme_str = input(prompt + " (format HH:MM): ")
-            return datetime.strptime(vreme_str, "%H:%M")
-        except ValueError:
-            print("Neispravan format, pokušajte ponovo.")
+# Funkcija za odredjivanje maksimalnog perioda budnosti na osnovu uzrasta
+def dohvati_maksimum_budnosti(uzrast_mjeseci):
+    if uzrast_mjeseci <= 0.5:
+        return 45, 60
+    elif uzrast_mjeseci <= 3:
+        return 60, 90
+    elif uzrast_mjeseci <= 4:
+        return 75, 120
+    elif uzrast_mjeseci <= 7:
+        return 120, 180
+    elif uzrast_mjeseci <= 10:
+        return 150, 210
+    elif uzrast_mjeseci <= 18:
+        return 180, 240
+    else:
+        return 240, 360
 
-# Funkcija za odredjivanje maksimalnog budnog prozora prema uzrastu
-def max_budnost_za_uzrast(uzrast_mjeseci):
-    if uzrast_mjeseci <= 0.25:  # 0-4 nedelje
-        return timedelta(minutes=45)
-    elif uzrast_mjeseci <= 0.75:  # 4-12 nedelja
-        return timedelta(minutes=90)
-    elif uzrast_mjeseci <= 4/12:  # 3-4 Meseca
-        return timedelta(minutes=120)
-    elif uzrast_mjeseci <= 7/12:  # 5-7 meseci
-        return timedelta(hours=3)
-    elif uzrast_mjeseci <= 10/12:  # 7-10 meseci
-        return timedelta(hours=3.5)
-    elif uzrast_mjeseci <= 18/12:  # 11-18 meseci
-        return timedelta(hours=4)
-    else:  # 18+ meseci
-        return timedelta(hours=6)
-
-# Unos uzrasta bebe u mesecima
+# Inputi
 uzrast_mjeseci = float(input("Unesite uzrast bebe u mesecima: "))
-max_budnost = max_budnost_za_uzrast(uzrast_mjeseci)
+vreme_budenja_input = input("Unesite vreme buđenja (format HH:MM, 24h): ")
+vreme_uspavljivanja_input = input("Unesite vreme uspavljivanja (format HH:MM, 24h): ")
 
-# Unos vremena buđenja i uspavljivanja
-vreme_budjenja = unesi_vreme("Unesite vreme buđenja")
-vreme_uspu = unesi_vreme("Unesite vreme uspavljivanja")
+# Konvertovanje u datetime objekte
+vreme_budenja = datetime.strptime(vreme_budenja_input, "%H:%M")
+vreme_uspavljivanja = datetime.strptime(vreme_uspavljivanja_input, "%H:%M")
 
-# Pretvaranje u datetime objekat za istu danu
-danas = datetime.today()
-vreme_budjenja = vreme_budjenja.replace(year=danas.year, month=danas.month, day=danas.day)
-vreme_uspu = vreme_uspu.replace(year=danas.year, month=danas.month, day=danas.day)
+# Dohvatanje maksimuma budnosti
+max_budnost_min, max_budnost_max = dohvati_maksimum_budnosti(uzrast_mjeseci)
+print(f"Maksimalna budnost za uzrast {uzrast_mjeseci} meseci je između {max_budnost_min} i {max_budnost_max} minuta.")
 
-# Ako je vreme uspavljivanja manje od vremena buđenja, pretpostavljamo da je prešlo u sledeći dan
-if vreme_uspu <= vreme_budjenja:
-    vreme_uspu += timedelta(days=1)
+# Izračun sledećeg vremena buđenja
+sledece_budjenje_min = vreme_uspavljivanja + timedelta(minutes=max_budnost_min)
+sledece_budjenje_max = vreme_uspavljivanja + timedelta(minutes=max_budnost_max)
 
-# Računanje trajanja budnosti
-trajanje_budnosti = vreme_uspu - vreme_budjenja
+print(f"Sledeće vreme buđenja će biti između: {sledece_budjenje_min.strftime('%H:%M')} i {sledece_budjenje_max.strftime('%H:%M')}.")
 
-# Provera da li je trajanje duže od maksimuma
-if trajanje_budnosti > max_budnost:
-    print("Upozorenje: trajanje budnosti je duže od preporučenog!")
-    # Slanje WhatsApp poruke
-    poruka = client.messages.create(
-        from_='whatsapp:+14155238886',
-        body='Upozorenje: trajanje budnosti vaše bebe je duže od preporučenog.',
-        to='whatsapp:+381642538013'
-    )
-    print(f"Poruka poslata, SID: {poruka.sid}")
-else:
-    print("Trajanje budnosti je unutar preporučenih granica.")
+# Slanje WhatsApp poruke
+poruka = f"Planirano sledeće buđenje vaše bebe je između {sledece_budjenje_min.strftime('%H:%M')} i {sledece_budjenje_max.strftime('%H:%M')}."
 
-print(f"Trajanje budnosti: {trajanje_budnosti}")
+message = client.messages.create(
+    from_='whatsapp:+14155238886',
+    content_sid='HXb5b62575e6e4ff6129ad7c8efe1f983e',
+    content_variables='{"1":"' + datetime.now().strftime('%m/%d') + '", "2":"' + message + '"}',
+    to='whatsapp:+381642538013'
+)
+
+print(f"Poruka poslata, SID: {message.sid}")
