@@ -3,11 +3,15 @@ import datetime
 import time
 import threading
 from twilio.rest import Client
+import pytz
 
 # Twilio kredencijali
 account_sid = 'ACd807f2bde8af5db99312ffc4bae1551c'
 auth_token = '41acd9fbdc365814a0a8b84d52cd2083'
 client = Client(account_sid, auth_token)
+
+# Lokalna vremenska zona
+local_tz = pytz.timezone("Europe/Belgrade")
 
 # Funkcija za maksimalnu budnost po uzrastu
 def get_awake_window(age_months):
@@ -39,7 +43,13 @@ def send_whatsapp_message(wake_time, sleep_time):
 # Funkcija za zakazivanje obaveštenja
 def schedule_notification(wake_time, sleep_time):
     def notify():
-        seconds_to_wait = (sleep_time - datetime.datetime.now()).total_seconds()
+        now = datetime.datetime.now(local_tz)
+        seconds_to_wait = (sleep_time - now).total_seconds()
+
+        print(f"[DEBUG] Trenutno vreme: {now.strftime('%H:%M:%S')}")
+        print(f"[DEBUG] Zakazano vreme za uspavljivanje: {sleep_time.strftime('%H:%M:%S')}")
+        print(f"[DEBUG] Čekanje {seconds_to_wait:.1f} sekundi...")
+
         if seconds_to_wait > 0:
             time.sleep(seconds_to_wait)
         send_whatsapp_message(wake_time, sleep_time)
@@ -54,12 +64,14 @@ st.title("🍼 Baby Awake Tracker")
 st.markdown("Unesi podatke da bi dobio predlog kada da bebu uspavaš + WhatsApp obaveštenje.")
 
 age_months = st.number_input("Uzrast bebe (u mesecima)", min_value=0, max_value=36, value=4)
-wake_time_input = st.time_input("Vreme buđenja bebe", value=datetime.datetime.now().time())
+wake_time_input = st.time_input("Vreme buđenja bebe", value=datetime.datetime.now(local_tz).time())
 start_button = st.button("📤 Započni praćenje")
 
 if start_button:
-    now = datetime.datetime.now()
+    now = datetime.datetime.now(local_tz)
     wake_time = datetime.datetime.combine(now.date(), wake_time_input)
+    wake_time = local_tz.localize(wake_time)
+
     awake_minutes = get_awake_window(age_months)
     sleep_time = wake_time + datetime.timedelta(minutes=awake_minutes)
 
