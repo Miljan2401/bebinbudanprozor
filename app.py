@@ -57,23 +57,33 @@ def schedule_notification(budjenje_vreme, budno_minuta):
     t.start()
     st.info(f"Podsetnik će biti poslat u {podsetnik_vreme.strftime('%H:%M')} (za {int(vreme_do_podsetnika)} sekundi).")
 
-# Koristi st.time_input za izbor vremena u jednom polju (ima scroll picker u browseru i mobilnim uređajima)
-vreme_budenja = st.time_input("Unesi vreme poslednjeg buđenja bebe (sat i minut):", value=datetime.now().time())
+# Sat i minut u jednom redu koristeći columns
+col1, col2 = st.columns(2)
+
+with col1:
+    sat = st.selectbox("Sat (24h format)", list(range(0,24)), index=datetime.now().hour)
+
+with col2:
+    minut = st.selectbox("Minut", list(range(0,60)), index=datetime.now().minute)
 
 if st.button("Dodaj buđenje i zakaži podsetnik"):
     danas = datetime.now().date()
-    vreme_obj = datetime.combine(danas, vreme_budenja)
+    vreme_obj = datetime.combine(danas, datetime.min.time())\
+        .replace(hour=sat, minute=minut)
     sada = datetime.now()
 
-    # Ako je vreme iz prošlosti, prebacujemo na sutra
+    # Ako je vreme u prošlosti, pomeri na sutra
     if vreme_obj < sada:
         vreme_obj += timedelta(days=1)
+
+    if "buđenja" not in st.session_state:
+        st.session_state.buđenja = []
 
     st.session_state.buđenja.append(vreme_obj)
     st.success(f"Dodato vreme buđenja: {vreme_obj.strftime('%H:%M')}")
     schedule_notification(vreme_obj, budno_minuta)
 
-if st.session_state.buđenja:
+if "buđenja" in st.session_state and st.session_state.buđenja:
     st.subheader("Zabeležena buđenja:")
     for i, b in enumerate(st.session_state.buđenja):
         st.write(f"{i+1}. {b.strftime('%H:%M')}")
