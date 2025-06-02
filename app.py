@@ -73,27 +73,21 @@ for i in range(num_cycles):
 # Prikaz grafikona ciklusa
 if cycles:
     df = pd.DataFrame([
-        {"Period": f"Ciklus {i+1} - Budna", "Start": c["wake"], "End": c["sleep"]}
+        {"Period": f"Ciklus {i+1} - Budna", "Start": c["wake"], "End": c["sleep"], "State": "Budna"}
         for i, c in enumerate(cycles)
     ] + [
-        {"Period": f"Ciklus {i+1} - Spavanje", "Start": c["sleep"], "End": cycles[i+1]["wake"] if i+1 < len(cycles) else c["sleep"] + datetime.timedelta(minutes=60)}
+        {"Period": f"Ciklus {i+1} - Spavanje", "Start": c["sleep"], "End": cycles[i+1]["wake"] if i+1 < len(cycles) else c["sleep"] + datetime.timedelta(minutes=60), "State": "Spavanje"}
         for i, c in enumerate(cycles)
     ])
 
     base = alt.Chart(df).encode(
         x='Start:T',
         x2='End:T',
-        y=alt.Y('Period:N', sort=None)
+        y=alt.Y('Period:N', sort=None),
+        color=alt.Color('State:N', scale=alt.Scale(domain=["Budna", "Spavanje"], range=["green", "blue"]))
     )
 
-    bars = base.mark_bar().encode(
-        color=alt.condition(
-            alt.datum.Period.str.contains("Budna"),
-            alt.value("green"),
-            alt.value("blue")
-        )
-    )
-
+    bars = base.mark_bar()
     st.altair_chart(bars, use_container_width=True)
 
 # Dugme za zakazivanje podsetnika za prvi ciklus
