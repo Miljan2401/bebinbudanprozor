@@ -1,9 +1,9 @@
 import streamlit as st
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 from threading import Timer
 from twilio.rest import Client
 
-# Twilio podaci
+# Twilio podaci (zameni stvarnim vrednostima)
 ACCOUNT_SID = "ACd807f2bde8af5db99312ffc4bae1551c"
 AUTH_TOKEN = "41acd9fbdc365814a0a8b84d52cd2083"
 FROM_WHATSAPP = "whatsapp:+14155238886"
@@ -13,7 +13,6 @@ client = Client(ACCOUNT_SID, AUTH_TOKEN)
 
 st.title("🍼 Bebin san sa automatskim WhatsApp podsetnikom")
 
-# Padajući meni za uzrast bebe
 uzrast_opcije = {
     "0–3 meseca (45 min)": 45,
     "4–6 meseci (90 min)": 90,
@@ -21,7 +20,6 @@ uzrast_opcije = {
     "9–12 meseci (150 min)": 150,
     "12+ meseci (180 min)": 180
 }
-
 uzrast = st.selectbox("Izaberi uzrast bebe:", list(uzrast_opcije.keys()))
 budno_minuta = uzrast_opcije[uzrast]
 
@@ -58,13 +56,23 @@ def schedule_notification(budjenje_vreme, budno_minuta):
     t.start()
     st.info(f"Podsetnik će biti poslat u {podsetnik_vreme.strftime('%H:%M')} (za {int(vreme_do_podsetnika)} sekundi).")
 
-# Novi deo: padajući meni za sat i minut
-sat = st.selectbox("Izaberi sat (1-24):", list(range(1, 25)))
-minut = st.selectbox("Izaberi minut (1-60):", list(range(1, 61)))
+# Kompaktni unos sata i minuta u jednom redu koristeći kolone
+col1, col2 = st.columns(2)
+
+with col1:
+    sat = st.selectbox("Sat (1-24)", list(range(1, 25)), index=datetime.now().hour-1)
+with col2:
+    minut = st.selectbox("Minut (0-59)", list(range(0, 60)), index=datetime.now().minute)
 
 if st.button("Dodaj buđenje i zakaži podsetnik"):
     danas = datetime.now().date()
-    vreme_obj = datetime.combine(danas, datetime.min.time()).replace(hour=sat, minute=minut)
+    vreme_obj = datetime.combine(danas, time(hour=sat, minute=minut))
+    sada = datetime.now()
+
+    # Ako je izabrano vreme u prošlosti, podesi za sutra
+    if vreme_obj < sada:
+        vreme_obj += timedelta(days=1)
+
     st.session_state.buđenja.append(vreme_obj)
     st.success(f"Dodato vreme buđenja: {vreme_obj.strftime('%H:%M')}")
     schedule_notification(vreme_obj, budno_minuta)
