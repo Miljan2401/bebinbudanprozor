@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from threading import Timer
 from twilio.rest import Client
 
-# Twilio podešavanja (unesi svoje podatke ovde)
+# Twilio podaci
 ACCOUNT_SID = "ACd807f2bde8af5db99312ffc4bae1551c"
 AUTH_TOKEN = "41acd9fbdc365814a0a8b84d52cd2083"
 FROM_WHATSAPP = "whatsapp:+14155238886"
@@ -13,7 +13,7 @@ client = Client(ACCOUNT_SID, AUTH_TOKEN)
 
 st.title("🍼 Bebin san sa automatskim WhatsApp podsetnikom")
 
-# Budni prozori po uzrastu (minuti)
+# Padajući meni za uzrast bebe
 uzrast_opcije = {
     "0–3 meseca (45 min)": 45,
     "4–6 meseci (90 min)": 90,
@@ -54,16 +54,17 @@ def schedule_notification(budjenje_vreme, budno_minuta):
         st.warning("Već je prošlo vreme za podsetnik ili je beba predugo budna.")
         return
 
-    # Start timer za slanje poruke
     t = Timer(vreme_do_podsetnika, send_whatsapp_notification, args=(budjenje_vreme, spavanje_vreme))
     t.start()
     st.info(f"Podsetnik će biti poslat u {podsetnik_vreme.strftime('%H:%M')} (za {int(vreme_do_podsetnika)} sekundi).")
 
-novo_budjenje = st.time_input("Unesi vreme kada se beba probudila:")
+# Novi deo: padajući meni za sat i minut
+sat = st.selectbox("Izaberi sat (1-24):", list(range(1, 25)))
+minut = st.selectbox("Izaberi minut (1-60):", list(range(1, 61)))
 
 if st.button("Dodaj buđenje i zakaži podsetnik"):
     danas = datetime.now().date()
-    vreme_obj = datetime.combine(danas, novo_budjenje)
+    vreme_obj = datetime.combine(danas, datetime.min.time()).replace(hour=sat, minute=minut)
     st.session_state.buđenja.append(vreme_obj)
     st.success(f"Dodato vreme buđenja: {vreme_obj.strftime('%H:%M')}")
     schedule_notification(vreme_obj, budno_minuta)
